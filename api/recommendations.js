@@ -26,8 +26,8 @@ export default async function handler(req, res) {
   if (JSON.stringify(body).length > 12000) return res.status(413).json({ error: 'İstek çok büyük.' });
   // Invisible honeypot: basic bot deterrent, not a replacement for rate limits.
   if (body.website) return res.status(200).json({ ok: true });
-  const clean = (v) => typeof v === 'string' ? v.replace(/[\\u0000-\\u001F\\u007F]/g, ' ').replace(/\\s+/g, ' ').trim() : '';
-  const suspicious = (v) => /https?:\\/\\/|www\\.|<[^>]*>|(?:\\b(?:telegram|whatsapp)\\b.{0,20}\\b(?:t\\.me|wa\\.me)\\b)/i.test(v);
+  const clean = (v) => typeof v === 'string' ? v.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim() : '';
+  const suspicious = (v) => /https?:\/\/|www\.|<[^>]*>/i.test(v);
   const venue_name = clean(body.venue_name);
   const district = clean(body.district);
   const category = clean(body.category);
