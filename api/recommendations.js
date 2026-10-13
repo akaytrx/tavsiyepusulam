@@ -6,6 +6,10 @@ export default async function handler(req, res) {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Yalnızca POST destekleniyor.' });
   }
+  const type = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  if (type !== 'application/json') return res.status(415).json({ error: 'JSON içeriği gerekli.' });
+  const fetchSite = req.headers['sec-fetch-site'];
+  if (fetchSite && !['same-origin', 'none'].includes(fetchSite)) return res.status(403).json({ error: 'İzin verilmeyen istek.' });
   const length = Number(req.headers['content-length'] || 0);
   if (length > 12000) return res.status(413).json({ error: 'İstek çok büyük.' });
   const origin = req.headers.origin;
@@ -18,17 +22,20 @@ export default async function handler(req, res) {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) return res.status(503).json({ error: 'Servis yapılandırması eksik.' });
-  const body = typeof req.body === 'object' && req.body !== null ? req.body : {};
+  const body = typeof req.body === 'object' && req.body !== null && !Array.isArray(req.body) ? req.body : {};
+  if (JSON.stringify(body).length > 12000) return res.status(413).json({ error: 'İstek çok büyük.' });
   // Invisible honeypot: basic bot deterrent, not a replacement for rate limits.
   if (body.website) return res.status(200).json({ ok: true });
-  const clean = (v) => typeof v === 'string' ? v.trim() : '';
+  const clean = (v) => typeof v === 'string' ? v.replace(/[\\u0000-\\u001F\\u007F]/g, ' ').replace(/\\s+/g, ' ').trim() : '';
+  const suspicious = (v) => /https?:\\/\\/|www\\.|<[^>]*>|(?:\\b(?:telegram|whatsapp)\\b.{0,20}\\b(?:t\\.me|wa\\.me)\\b)/i.test(v);
   const venue_name = clean(body.venue_name);
   const district = clean(body.district);
   const category = clean(body.category);
   const description = clean(body.description);
   if (!venue_name || venue_name.length > 120 || !district || district.length > 120 ||
       !['Romantik','Kahvaltı','Manzara','Arkadaşlarla','Genel'].includes(category) ||
-      description.length < 10 || description.length > 2000) {
+      description.length < 10 || description.length > 2000 ||
+      [venue_name,district,description].some(suspicious)) {
     return res.status(400).json({ error: 'Alanları kontrol et. Açıklama 10–2000 karakter olmalı.' });
   }
   try {
